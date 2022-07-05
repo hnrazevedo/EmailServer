@@ -272,7 +272,7 @@ tar -vxzf roundcubemail*
 mv roundcubemail-1.5.3 webmail
 rm roundcubemail-1.5.3-complete.tar.gz
 
-cp $EMAIL_SERVER_DIR/opt/roundcub/create_database.sql /var/www/html/webmail/installer/create_database.sql
+cp $EMAIL_SERVER_DIR/opt/roundcube/create_database.sql /var/www/html/webmail/installer/create_database.sql
 mariadb < /var/www/html/webmail/installer/create_database.sql
 
 chown www-data. /var/www/html/webmail/ -R
