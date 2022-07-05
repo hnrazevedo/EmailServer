@@ -1,6 +1,8 @@
 #/bin/bash
 
-tar -vxzf ./config.tar.gz -C ./
+PATH=${PWD}
+
+tar -vxzf $PATH/config.tar.gz -C $PATH/
 
 # APACHE2, MARIADB E PHP7
 
@@ -15,7 +17,7 @@ apt update \
 a2enmod rewrite;
 
 mv /etc/apache2/sites-enabled/000-default.conf /etc/apache2/sites-enabled/000-default.conf.orig
-cp ./etc/apache2/sites-enabled/000-default.conf /etc/apache2/sites-enabled/000-default.conf
+cp $PATH/etc/apache2/sites-enabled/000-default.conf /etc/apache2/sites-enabled/000-default.conf
 
 # Removendo assinatura do servidor
 
@@ -35,16 +37,16 @@ mkdir -p /var/lib/phpmyadmin/tmp;
 chown -R www-data:www-data /var/lib/phpmyadmin;
 
 mkdir -p /etc/apache2/conf-available
-cp ./etc/apache2/conf-available/phpmyadmin.conf /etc/apache2/conf-available/phpmyadmin.conf
+cp $PATH/etc/apache2/conf-available/phpmyadmin.conf /etc/apache2/conf-available/phpmyadmin.conf
 
 a2enconf phpmyadmin;
 systemctl restart apache2;
 
-mariadb < ./usr/share/phpmyadmin/sql/create_database.sql
+mariadb < $PATH/usr/share/phpmyadmin/sql/create_database.sql
 mariadb phpmyadmin < /usr/share/phpmyadmin/sql/create_tables.sql
 
 cp /usr/share/phpmyadmin/config.sample.inc.php /usr/share/phpmyadmin/config.inc.php
-cat ./usr/share/phpmyadmin/config.hazevedo.inc.php >> /usr/share/phpmyadmin/config.inc.php
+cat $PATH/usr/share/phpmyadmin/config.hazevedo.inc.php >> /usr/share/phpmyadmin/config.inc.php
 
 # POSTFIX / DOVECOTE / DKIM / SPF
 
@@ -73,7 +75,7 @@ echo "\$CONF['default_language'] = 'pt-br';" >> /opt/postfixadmin/config.inc.php
 
 sed -i 's/change-this-to-your.domain.tld/hazevedo.dev/' /opt/postfixadmin/config.inc.php
 
-mariadb < ./opt/postfixadmin/create_database.sql
+mariadb < $PATH/opt/postfixadmin/create_database.sql
 
 groupadd -g 5000 vmail
 useradd -g vmail -u 5000 vmail -d /var/vmail
