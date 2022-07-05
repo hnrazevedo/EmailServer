@@ -68,11 +68,14 @@ cd /opt/postfixadmin
 bash install.sh
 chown -R www-data. /opt/postfixadmin
 
+cp $EMAIL_SERVER_DIR/etc/apache2/conf-enabled/postfixadmin.conf /etc/apache2/conf-enabled/postfixadmin.conf
+cp $EMAIL_SERVER_DIR/opt/postfixadmin/config.local.inc.php /opt/postfixadmin/config.local.php
+
 systemctl reload apache2
 
 echo "\$CONF['encrypt'] = 'md5';" >> /opt/postfixadmin/config.inc.php
 echo "\$CONF['default_language'] = 'pt-br';" >> /opt/postfixadmin/config.inc.php
-
+echo "\$CONF['configured'] = 'true';" >> /opt/postfixadmin/config.inc.php
 sed -i 's/change-this-to-your.domain.tld/hazevedo.dev/' /opt/postfixadmin/config.inc.php
 
 mariadb < $EMAIL_SERVER_DIR/opt/postfixadmin/create_database.sql
