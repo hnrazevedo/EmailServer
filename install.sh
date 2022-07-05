@@ -1,6 +1,6 @@
 #/bin/bash
 
-tar -vxzf ./config.tar.gz .
+tar -vxzf ./config.tar.gz -C ./
 
 # APACHE2, MARIADB E PHP7
 
