@@ -31,3 +31,9 @@ chown -R www-data:www-data /var/lib/phpmyadmin;
 
 a2enconf phpmyadmin;
 systemctl restart apache2;
+
+mariadb < /usr/share/phpmyadmin/sql/create_database.sql
+mariadb phpmyadmin < /usr/share/phpmyadmin/sql/create_tables.sql
+
+cp /usr/share/phpmyadmin/config.sample.inc.php /usr/share/phpmyadmin/config.inc.php
+cat /usr/share/phpmyadmin/config.hazevedo.inc.php >> /usr/share/phpmyadmin/config.inc.php
