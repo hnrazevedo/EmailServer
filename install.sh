@@ -134,3 +134,147 @@ ls -lh mysql_*
 chmod o-rwx,g+r mysql_*
 chgrp postfix mysql_*
 
+cp /etc/postfix/master.cf /etc/postfix/master.cf.orig
+
+echo "# Dovecot" >> /etc/postfix/master.cf
+echo "dovecot   unix  -       n       n       -       -       pipe" >> /etc/postfix/master.cf
+echo "  flags=DRhu user=vmail:vmail argv=/usr/lib/dovecot/deliver -d ${recipient}" >> /etc/postfix/master.cf
+
+cp /etc/dovecot/dovecot.conf /etc/dovecot/dovecot.conf.orig
+sed -i -e 's/#listen/listen/' /etc/dovecot/dovecot.conf
+
+cp /etc/dovecot/dovecot-sql.conf.ext /etc/dovecot/dovecot-sql.conf.ext.orig
+sed -i -e 's/#driver =/driver = mysql/' /etc/dovecot/dovecot-sql.conf.ext
+
+echo " " >> /etc/dovecot/dovecot.conf
+echo "service stats {" >> /etc/dovecot/dovecot.conf
+echo "    unix_listener stats-reader {" >> /etc/dovecot/dovecot.conf
+echo "        user = vmail" >> /etc/dovecot/dovecot.conf
+echo "        group = vmail" >> /etc/dovecot/dovecot.conf
+echo "        mode = 0660" >> /etc/dovecot/dovecot.conf
+echo "    }" >> /etc/dovecot/dovecot.conf
+echo " " >> /etc/dovecot/dovecot.conf
+echo "    unix_listener stats-writer {" >> /etc/dovecot/dovecot.conf
+echo "        user = vmail" >> /etc/dovecot/dovecot.conf
+echo "        group = vmail" >> /etc/dovecot/dovecot.conf
+echo "        mode = 0660" >> /etc/dovecot/dovecot.conf
+echo "    }" >> /etc/dovecot/dovecot.conf
+echo "}" >> /etc/dovecot/dovecot.conf
+
+sed -i -e "s/#connect =/connect = host=localhost dbname=postfixadmin user=postfixadmin password=$MINHASENHA/" /etc/dovecot/dovecot-sql.conf.ext
+sed -i -e 's/#default_pass_scheme/default_pass_scheme/' /etc/dovecot/dovecot-sql.conf.ext
+
+echo "" >> /etc/dovecot/dovecot-sql.conf.ext
+echo "user_query = SELECT concat('/var/vmail/', maildir) as home, concat('maildir:/var/vmail/', maildir) as mail, 5000 AS uid, 5000 AS gid, concat('*:bytes=', (quota)) AS quota_rule FROM mailbox WHERE username = '%u' AND active = '1';" >> /etc/dovecot/dovecot-sql.conf.ext
+echo "" >> /etc/dovecot/dovecot-sql.conf.ext
+echo "password_query = SELECT username as user, password, concat('/var/vmail/', maildir) as userdb_home, concat('maildir:/var/vmail/', maildir) as userdb_mail, 5000 as userdb_uid, 5000 as userdb_gid, concat('*:bytes=', (quota)) AS userdb_quota_rule FROM mailbox WHERE username = '%u' AND active = '1';" >> /etc/dovecot/dovecot-sql.conf.ext
+
+cp /etc/dovecot/conf.d/10-auth.conf /etc/dovecot/conf.d/10-auth.conf.orig
+sed -i -e 's/#disable_plaintext_auth = yes/disable_plaintext_auth = no/' /etc/dovecot/conf.d/10-auth.conf
+sed -i -e 's/auth_mechanisms = plain/auth_mechanisms = plain login/' /etc/dovecot/conf.d/10-auth.conf
+sed -i -e 's/!include auth-system.conf.ext/#!include auth-system.conf.ext/' /etc/dovecot/conf.d/10-auth.conf
+sed -i -e 's/#!include auth-sql.conf.ext/!include auth-sql.conf.ext/' /etc/dovecot/conf.d/10-auth.conf
+
+cp /etc/dovecot/conf.d/10-logging.conf /etc/dovecot/conf.d/10-logging.conf.orig
+sed -i -e 's/#log_path/log_path/' /etc/dovecot/conf.d/10-logging.conf
+sed -i -e 's/#log_timestamp = "%b %d %H:%M:%S "/log_timestamp = "%Y-%m-%d %H:%M:%S "/' /etc/dovecot/conf.d/10-logging.conf
+
+cp /etc/dovecot/conf.d/10-master.conf /etc/dovecot/conf.d/10-master.conf.orig
+
+cp $EMAIL_SERVER_DIR/etc/dovecot/conf.d/10-master.conf /etc/dovecot/conf.d/10-master.conf
+
+mkdir /var/lib/dovecot/sieve/
+cp /etc/dovecot/conf.d/90-sieve.conf /etc/dovecot/conf.d/90-sieve.conf.orig
+sed -i -e 's/sieve = file:~\/sieve;active=~\/.dovecot.sieve/sieve = ~\/dovecot.sieve/' /etc/dovecot/conf.d/90-sieve.conf
+sed -i -e 's/#sieve_default =/sieve_default =/' /etc/dovecot/conf.d/90-sieve.conf
+
+echo 'require ["fileinto"];' >> /var/lib/dovecot/sieve/default.sieve
+echo '# rule:[Spam]' >> /var/lib/dovecot/sieve/default.sieve
+echo 'if header :contains "X-Spam-Flag" "YES" {' >> /var/lib/dovecot/sieve/default.sieve
+echo '        fileinto "Junk";' >> /var/lib/dovecot/sieve/default.sieve
+echo '}' >> /var/lib/dovecot/sieve/default.sieve
+
+sievec /var/lib/dovecot/sieve/default.sieve
+chown -R vmail:vmail /var/lib/dovecot
+
+cp /etc/dovecot/conf.d/10-mail.conf /etc/dovecot/conf.d/10-mail.conf.orig
+sed -i -e 's/mail_location = mbox:~\/mail:INBOX=\/var\/mail\/%u/mail_location = mbox:~\/mail:INBOX=\/var\/vmail\/%u/' /etc/dovecot/conf.d/10-mail.conf
+
+sed -i -e 's/inbox = yes/inbox = yes\n  /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    } /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      special_use = \Junk /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      auto = subscribe /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    mailbox Junk { /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    } /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      special_use = \Sent /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      auto = subscribe /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    mailbox Sent { /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    } /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      special_use = \Drafts /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      auto = subscribe /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    mailbox Drafts { /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n    } /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      special_use = \Trash /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n      auto = subscribe /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n  mailbox Trash { /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/inbox = yes/inbox = yes\n  /' /etc/dovecot/conf.d/10-mail.conf
+sed -i -e 's/#mail_plugins =/mail_plugins = quota/' /etc/dovecot/conf.d/10-mail.conf
+
+cp /etc/dovecot/conf.d/20-managesieve.conf  /etc/dovecot/conf.d/20-managesieve.conf.orig
+
+cp $EMAIL_SERVER_DIR/etc/dovecot/conf.d/20-managesieve.conf /etc/dovecot/conf.d/20-managesieve.conf
+
+echo "protocols = $protocols sieve" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "service managesieve-login {" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "}" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "service managesieve {" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "}" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "protocol sieve {" >> /etc/dovecot/conf.d/20-managesieve.conf
+echo "}" >> /etc/dovecot/conf.d/20-managesieve.conf
+
+cp /etc/dovecot/conf.d/15-lda.conf /etc/dovecot/conf.d/15-lda.conf.orig
+sed -i -e 's/#mail_plugins = $mail_plugins/mail_plugins = $mail_plugins sieve quota/' /etc/dovecot/conf.d/15-lda.conf
+
+cp /etc/dovecot/conf.d/20-imap.conf /etc/dovecot/conf.d/20-imap.conf.orig
+sed -i -e 's/#mail_plugins = $mail_plugins/mail_plugins = $mail_plugins quota imap_quota/' /etc/dovecot/conf.d/20-imap.conf
+
+cp /etc/dovecot/conf.d/20-pop3.conf /etc/dovecot/conf.d/20-pop3.conf.orig
+sed -i -e 's/#mail_plugins = $mail_plugins/mail_plugins = $mail_plugins quota/' /etc/dovecot/conf.d/20-pop3.conf
+
+cp /etc/dovecot/conf.d/90-quota.conf /etc/dovecot/conf.d/90-quota.conf.orig
+sed -i -e 's/#quota = maildir/quota = maildir/' /etc/dovecot/conf.d/90-quota.conf
+sed -i -e 's/#quota_rule =/quota_rule =/' /etc/dovecot/conf.d/90-quota.conf
+sed -i -e 's/#quota_rule2 =/quota_rule2 =/' /etc/dovecot/conf.d/90-quota.conf
+sed -i -e 's/#quota_warning/quota_warning/' /etc/dovecot/conf.d/90-quota.conf
+
+echo "service quota-warning {" >> /etc/dovecot/conf.d/90-quota.conf
+echo "  executable = script /usr/local/bin/quota-warning.sh" >> /etc/dovecot/conf.d/90-quota.conf
+echo "  user = root" >> /etc/dovecot/conf.d/90-quota.conf
+echo "  unix_listener quota-warning {" >> /etc/dovecot/conf.d/90-quota.conf
+echo "    user = vmail" >> /etc/dovecot/conf.d/90-quota.conf
+echo "  }" >> /etc/dovecot/conf.d/90-quota.conf
+echo "}" >> /etc/dovecot/conf.d/90-quota.conf
+
+cp $EMAIL_SERVER_DIR/usr/local/bin/quota-warning.sh /usr/local/bin/quota-warning.sh
+
+chmod +x /usr/local/bin/quota-warning.sh
+systemctl restart dovecot postfix
+systemctl status dovecot postfix
+
+# WebMail RoundCube
+
+sed -i -e "s/^;date\.timezone =.*$/date\.timezone = 'America\/Sao_Paulo'/" /etc/php/7.4/apache2/php.ini
+systemctl restart apache2
+
+cd /var/www/html
+wget https://github.com/roundcube/roundcubemail/releases/download/1.5.3/roundcubemail-1.5.3-complete.tar.gz
+tar -vxzf roundcubemail*
+mv roundcubemail-1.5.3 webmail
+rm roundcubemail-1.5.3-complete.tar.gz
+
+cp $EMAIL_SERVER_DIR/opt/roundcub/create_database.sql /var/www/html/webmail/installer/create_database.sql
+mariadb < /var/www/html/webmail/installer/create_database.sql
+
+chown www-data. /var/www/html/webmail/ -R
+
+
